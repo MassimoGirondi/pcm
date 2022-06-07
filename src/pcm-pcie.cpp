@@ -67,6 +67,8 @@ void print_usage(const string progname)
     cerr << "  -B                                 => Estimate PCIe B/W (in Bytes/sec) by multiplying\n";
     cerr << "                                        the number of transfers by the cache line size (=64 bytes).\n";
     cerr << "  -e                                 => print additional PCIe LLC miss/hit statistics.\n";
+    cerr << "  -q                                 => be quieter, do not print header at every row\n";
+    cerr << "  -t                                 => print timestamp at each row\n";
     cerr << "  -i[=number] | /i[=number]          => allow to determine number of iterations\n";
     cerr << " It overestimates the bandwidth under traffic with many partial cache line transfers.\n";
     cerr << "\n";
@@ -120,6 +122,8 @@ int main(int argc, char * argv[])
     bool csv = false;
     bool print_bandwidth = false;
 	bool print_additional_info = false;
+    bool quiter = false;
+    bool print_timestamps = false;
     char * sysCmd = NULL;
     char ** sysArgv = NULL;
     MainLoop mainLoop;
@@ -170,6 +174,18 @@ int main(int argc, char * argv[])
         if (strncmp(*argv, "-e", 2) == 0 )
         {
             print_additional_info = true;
+            continue;
+        }
+        else
+        if (strncmp(*argv, "-q", 2) == 0 )
+        {
+            quiter = true;
+            continue;
+        }
+        else
+        if (strncmp(*argv, "-t", 2) == 0 )
+        {
+            print_timestamps = true;
             continue;
         }
         else
@@ -232,6 +248,12 @@ int main(int argc, char * argv[])
     }
 
     // ================================== Begin Printing Output ==================================
+    if (print_timestamps && !csv)
+        cout << "Ignore print timestamps when doing screen output (TODO)" << endl;
+
+    if (quiter)
+        platform->printHeader(print_timestamps);
+
     mainLoop([&]()
     {
         if (!csv) cout << flush;
@@ -239,11 +261,12 @@ int main(int argc, char * argv[])
         for(uint i=0; i < NUM_SAMPLES; i++)
             platform->getEvents();
 
-        platform->printHeader();
+        if (! quiter)
+            platform->printHeader(print_timestamps);
 
-        platform->printEvents();
+        platform->printEvents(print_timestamps);
 
-        platform->printAggregatedEvents();
+        platform->printAggregatedEvents(print_timestamps);
 
         platform->cleanup();
 

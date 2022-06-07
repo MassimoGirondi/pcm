@@ -46,9 +46,9 @@ class IPlatform
 public:
     IPlatform(PCM *m, bool csv, bool bandwidth, bool verbose);
     virtual void getEvents() = 0;
-    virtual void printHeader() = 0;
-    virtual void printEvents() = 0;
-    virtual void printAggregatedEvents() = 0;
+    virtual void printHeader(bool timestamp = false) = 0;
+    virtual void printEvents(bool timestamp = false) = 0;
+    virtual void printAggregatedEvents(bool timestamp = false) = 0;
     virtual void cleanup() = 0;
     static IPlatform *getPlatform(PCM* m, bool csv, bool bandwidth,
                                         bool verbose, uint32 delay);
@@ -108,15 +108,15 @@ class LegacyPlatform: public IPlatform
     array<eventCount_t, total> eventCount;
 
     virtual void getEvents() final;
-    virtual void printHeader() final;
-    virtual void printEvents() final;
-    virtual void printAggregatedEvents() final;
+    virtual void printHeader(bool timestamp = false) final;
+    virtual void printEvents(bool timestamp = false) final;
+    virtual void printAggregatedEvents(bool timestamp = false) final;
     virtual void cleanup() final;
 
     void printBandwidth(uint socket, eventFilter filter);
     void printBandwidth();
     void printSocketScopeEvent(uint socket, eventFilter filter, uint idx);
-    void printSocketScopeEvents(uint socket, eventFilter filter);
+    void printSocketScopeEvents(uint socket, eventFilter filter, bool timestamp);
     uint64 getEventCount (uint socket, uint idx);
     uint eventGroupOffset(eventGroup_t &eventGroup);
     void getEventGroup(eventGroup_t &eventGroup);
@@ -200,8 +200,13 @@ void LegacyPlatform::getEvents()
         getEventGroup(evGroup);
 }
 
-void LegacyPlatform::printHeader()
+void LegacyPlatform::printHeader(bool timestamp)
 {
+    if (timestamp && m_csv)
+    {
+        cout << "time,";
+    }
+
     cout << "Skt";
     if (!m_csv)
         cout << ' ';
@@ -250,8 +255,16 @@ void LegacyPlatform::printSocketScopeEvent(uint skt, eventFilter filter, uint id
     }
 }
 
-void LegacyPlatform::printSocketScopeEvents(uint skt, eventFilter filter)
+void LegacyPlatform::printSocketScopeEvents(uint skt, eventFilter filter, bool timestamp)
 {
+    if (m_csv && timestamp){
+        // TODO: This is not exaclty portable (likely)
+        struct timespec now;
+        clock_gettime(CLOCK_MONOTONIC, &now);
+        uint64_t ms = now.tv_sec*1000LL + (now.tv_nsec / 1000000);
+        cout << ms << ',';
+    }
+
     if (!m_csv) {
         int ident = (int)strlen("Skt |") / 2;
         cout << setw(ident) << skt << setw(ident) << ' ';
@@ -270,14 +283,14 @@ void LegacyPlatform::printSocketScopeEvents(uint skt, eventFilter filter)
     cout << "\n";
 }
 
-void LegacyPlatform::printEvents()
+void LegacyPlatform::printEvents(bool timestamp)
 {
     for(uint skt =0; skt < m_socketCount; ++skt)
         if (!m_verbose)
-            printSocketScopeEvents(skt, TOTAL);
+            printSocketScopeEvents(skt, TOTAL, timestamp);
         else
             for (uint flt = TOTAL; flt < fltLast; ++flt)
-                printSocketScopeEvents(skt, static_cast<eventFilter>(flt));
+                printSocketScopeEvents(skt, static_cast<eventFilter>(flt), timestamp);
 }
 
 void LegacyPlatform::printAggregatedEvent(uint idx)
@@ -309,7 +322,7 @@ void LegacyPlatform::printBandwidth()
     }
 }
 
-void LegacyPlatform::printAggregatedEvents()
+void LegacyPlatform::printAggregatedEvents(bool timestamp)
 {
     if (!m_csv)
     {
